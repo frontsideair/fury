@@ -155,7 +155,7 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   def cols: Int = Terminal.columns(env).getOrElse(100)
 
   lazy val config: Config =
-    Ogdl.read[Config](installation.userConfig, identity(_)).toOption.getOrElse(Config())
+    Ogdl.read[Config](Installation.userConfig, identity(_)).toOption.getOrElse(Config())
 
   def read(): Try[Invocation] = {
     val log: Log = new Log(output, config)
@@ -175,7 +175,6 @@ case class Cli[+Hinted <: CliParam[_]](output: java.io.PrintStream,
   }
 
   lazy val layout: Try[Layout] = pwd.flatMap { pwd => Layout.find(Path(env.variables("HOME")), pwd, env) }
-  lazy val installation: Installation = Installation(env)
   
   def next: Option[String] = args.prefix.headOption.map(_.value)
   def completion: Boolean = command.isDefined

@@ -32,7 +32,7 @@ object ProjectCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
     config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout, cli.installation)
+    layer        <- Layer.read(Log.silent(config), layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     optSchemaArg <- ~cli.peek(SchemaArg)
   } yield new MenuContext(cli, layout, config, layer, optSchemaArg)
@@ -53,7 +53,7 @@ object ProjectCli {
       _         <- schema(projectId)
       focus     <- ~Lenses.focus(optSchemaId, force)
       layer     <- focus(layer, _.lens(_.main)) = Some(Some(projectId))
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
 
     } yield log.await()
   }
@@ -81,7 +81,7 @@ object ProjectCli {
       dSchema        <- layer.schemas.findBy(optSchemaId.getOrElse(layer.main))
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.compilerRefs(
-                            Log.silent(config), layout, cli.installation, false))
+                            Log.silent(config), layout, false))
 
       invoc          <- cli.read()
       log            <- invoc.logger()
@@ -97,7 +97,7 @@ object ProjectCli {
       layer          <- Lenses.updateSchemas(optSchemaId, layer, true)(Lenses.layer.mainProject(_))(_(_) =
                             Some(project.id))
 
-      _              <- ~Layer.save(log, layer, layout, cli.installation)
+      _              <- ~Layer.save(log, layer, layout)
       _              <- ~log.info(msg"Set current project to ${project.id}")
     } yield log.await()
   }
@@ -120,7 +120,7 @@ object ProjectCli {
       layer     <- Lenses.updateSchemas(optSchemaId, layer, force)(Lenses.layer.mainProject(_)) { (lens, ws) =>
                        if(lens(ws) == Some(projectId))(lens(ws) = None) else ws }
 
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -132,7 +132,7 @@ object ProjectCli {
       cli            <- cli.hint(DescriptionArg)
 
       cli            <- cli.hint(DefaultCompilerArg, ModuleRef.JavaRef :: dSchema.to[List].flatMap(
-                            _.compilerRefs(Log.silent(config), layout, cli.installation, false)))
+                            _.compilerRefs(Log.silent(config), layout, false)))
       
       cli            <- cli.hint(ForceArg)
       projectId      <- ~cli.peek(ProjectArg).orElse(dSchema.flatMap(_.main))
@@ -159,7 +159,7 @@ object ProjectCli {
       lens           <- ~Lenses.layer.schemas
       layer          <- ~lens.modify(layer)(_.filterNot(_.id == schema.id))
       layer          <- ~lens.modify(layer)(_ + newSchema)
-      _              <- ~Layer.save(log, layer, layout, cli.installation)
+      _              <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 }

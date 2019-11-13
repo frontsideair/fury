@@ -77,17 +77,17 @@ object Bsp {
       cli     <- cli.hint(Args.HttpsArg)
       invoc   <- cli.read()
       https   <- ~invoc(Args.HttpsArg).isSuccess
-      running <- ~run(System.in, System.out, layout, https, cli.installation)
+      running <- ~run(System.in, System.out, layout, https)
     } yield {
       System.err.println("Started bsp process ...")
       running.get()
       Done
     }
 
-  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean, installation: Installation): java.util.concurrent.Future[Void] = {
+  def run(in: InputStream, out: OutputStream, layout: Layout, https: Boolean): java.util.concurrent.Future[Void] = {
 
     val cancel = new Cancelator()
-    val server = new FuryBuildServer(layout, cancel, https, installation)
+    val server = new FuryBuildServer(layout, cancel, https)
 
     val launcher = new Launcher.Builder[BuildClient]()
       .setRemoteInterface(classOf[BuildClient])
@@ -107,7 +107,7 @@ object Bsp {
 
 }
 
-class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, installation: Installation) extends BuildServer with ScalaBuildServer {
+class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extends BuildServer with ScalaBuildServer {
   import FuryBuildServer._
   
   private[this] var client: BuildClient = _
@@ -118,9 +118,9 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private def structure: Try[Structure] =
     for {
       focus          <- Ogdl.read[Focus](layout.focusFile, identity(_))
-      layer          <- Layer.read(log, focus.layerRef, layout, installation)
+      layer          <- Layer.read(log, focus.layerRef, layout)
       schema         <- layer.mainSchema
-      hierarchy      <- schema.hierarchy(log, layout, installation, https)
+      hierarchy      <- schema.hierarchy(log, layout, https)
       universe       <- hierarchy.universe
       projects       <- layer.projects
       graph          <- projects.flatMap(_.moduleRefs).map { ref =>
@@ -143,10 +143,10 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
   private def getCompilation(structure: Structure, bti: BuildTargetIdentifier): Try[Compilation] = {
     for {
       //FIXME remove duplication with structure
-      layer          <- Layer.read(log, layout, installation)
+      layer          <- Layer.read(log, layout)
       schema         <- layer.mainSchema
       module <- structure.moduleRef(bti)
-      compilation    <- Compilation.syncCompilation(log, schema, module, layout, installation, https = true)
+      compilation    <- Compilation.syncCompilation(log, schema, module, layout, https = true)
     } yield compilation
   }
   
@@ -281,7 +281,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean, instal
     val bspTargets = compileParams.getTargets.asScala
     val allResults = bspTargets.traverse { bspTargetId =>
       for{
-        globalPolicy <- Policy.read(log, installation)
+        globalPolicy <- Policy.read(log)
         struct <- structure
         compilation <- getCompilation(struct, bspTargetId)
         moduleRef <- struct.moduleRef(bspTargetId)

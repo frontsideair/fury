@@ -34,7 +34,7 @@ object RepoCli {
   def context(cli: Cli[CliParam[_]]) = for {
     layout <- cli.layout
     config <- ~cli.config
-    layer  <- Layer.read(Log.silent(config), layout, cli.installation)
+    layer  <- Layer.read(Log.silent(config), layout)
   } yield Context(cli, layout, config, layer)
 
   def list(ctx: Context): Try[ExitStatus] = {
@@ -68,7 +68,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = None)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -103,7 +103,7 @@ object RepoCli {
       newRepo   <- ~repo.copy(local = Some(absPath))
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens.modify(layer)(_ - repo + newRepo))
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -136,7 +136,7 @@ object RepoCli {
                      case (newRepo, oldRepo) => lens.modify(layer)(_ - oldRepo + newRepo) }
                    }
 
-      _         <- ~Layer.save(log, newLayer, layout, cli.installation)
+      _         <- ~Layer.save(log, newLayer, layout)
 
       _         <- ~newRepos.foreach { case (newRepo, _) =>
                      log.info(msg"Repository ${newRepo} checked out to commit ${newRepo.commit}")
@@ -187,7 +187,7 @@ object RepoCli {
       sourceRepo     <- ~SourceRepo(nameArg, repo, version, commit, dir)
       lens           <- ~Lenses.layer.repos(schema.id)
       layer          <- ~(lens.modify(layer)(_ + sourceRepo))
-      _              <- ~Layer.save(log, layer, layout, cli.installation)
+      _              <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -222,7 +222,7 @@ object RepoCli {
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).track)) = version
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).local)) = dir.map(Some(_))
       layer       <- focus(layer, _.lens(_.repos(on(repo.id)).id)) = nameArg
-      _           <- ~Layer.save(log, layer, layout, cli.installation)
+      _           <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 
@@ -239,7 +239,7 @@ object RepoCli {
       repo      <- schema.repos.findBy(repoId)
       lens      <- ~Lenses.layer.repos(schema.id)
       layer     <- ~(lens(layer) -= repo)
-      _         <- ~Layer.save(log, layer, layout, cli.installation)
+      _         <- ~Layer.save(log, layer, layout)
     } yield log.await()
   }
 }

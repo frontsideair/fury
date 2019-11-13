@@ -20,7 +20,7 @@ import fury._, io._, strings._
 
 import gastronomy._
 import guillotine._
-import java.util._
+import java.util.{List => _, _}
 import java.text._
 
 import scala.util.Try
@@ -42,17 +42,39 @@ object Layout {
   }
 }
 
-case class Installation(env: Environment) {
+object Xdg {
+  
+  private case class Var(name: String) {
+    private val variable = Option(System.getenv(s"XDG_$name"))
+    def path: Option[Path] = variable.map(Path(_))
+    def paths: Option[List[Path]] = variable.map(_.split(":").to[List].map(Path(_)))
+  }
+  
+  val home: Path = Option(System.getenv("HOME")).map(Path(_)).getOrElse(Path("/"))
+  val cacheHome: Path = Var("CACHE_HOME").path.getOrElse(home / ".cache")
+  val dataHome: Path = Var("DATA_HOME").path.getOrElse(home / ".local" / "share")
+  val dataDirs: List[Path] = Var("DATA_DIRS").paths.getOrElse(List(Path("/usr/local/share"), Path("/usr/share")))
+  val configHome: Path = Var("CONFIG_HOME").path.getOrElse(home / ".config")
+  val configDirs: List[Path] = Var("CONFIG_DIRS").paths.getOrElse(List(Path("/etc/xdg")))
+  val runtimeDir: Path = Var("RUNTIME_DIR").path.getOrElse(Path("/tmp"))
 
-  lazy val home: Path = Path(env.variables("HOME"))
-  
-  val configDir: Path =
-    env.variables.get("XDG_CONFIG_HOME").map(Path(_)).getOrElse(home / ".config") / "fury"
-  
-  lazy val userConfig: Path = configDir / "config.fury"
-  lazy val aliasesPath: Path = configDir / "aliases"
-  lazy val layersPath: Path = (configDir / "layers").extant()
-  lazy val policyFile: Path = configDir / "policy.fury"
+  def findData(filename: Path): Option[Path] = (dataHome :: dataDirs).map(filename in _).find(_.exists)
+  def findConfig(filename: Path): Option[Path] = (configHome :: configDirs).map(filename in _).find(_.exists)
+
+  def data(filename: Path): Path = filename in dataHome.extant()
+  def config(filename: Path): Path = filename in configHome.extant()
+  def cache(filename: Path): Path = filename in cacheHome.extant()
+}
+
+object Installation {
+  val userConfig: Path = Xdg.config(Path("config.fury"))
+  val aliasesPath: Path = Xdg.config(Path("aliases"))
+  val layersPath: Path = Xdg.data(Path("layers"))
+  val policyFile: Path = Xdg.config(Path("policy.fury"))
+  val srcsDir: Path = Xdg.cache(Path("sources"))
+  val reposDir: Path = Xdg.cache(Path("repos"))
+  val binsDir: Path = Xdg.cache(Path("bins"))
+  val logsDir: Path = Xdg.cache(Path("logs"))
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
@@ -67,17 +89,14 @@ case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
   lazy val historyDir: Path = (furyDir / "history").extant()
   lazy val bloopDir: Path = (base / ".bloop").extant()
   lazy val classesDir: Path = (furyDir / "classes").extant()
-  lazy val binariesDir: Path = (cacheDir / "binaries").extant()
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
-  lazy val reposDir: Path = (cacheDir / "repos").extant()
   lazy val basesDir: Path = (furyDir / "bases").extant()
-  lazy val srcsDir: Path = (cacheDir / "sources").extant()
-  lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
   lazy val policyDir: Path = (furyDir / "policy").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
+  lazy val logsDir: Path = (furyDir / "logs").extant()
   lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"

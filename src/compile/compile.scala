@@ -255,13 +255,12 @@ object Compilation {
                     schema: Schema,
                     ref: ModuleRef,
                     layout: Layout,
-                    installation: Installation,
                     https: Boolean)
   : Try[Compilation] = for {
 
-    hierarchy   <- schema.hierarchy(log, layout, installation, https)
+    hierarchy   <- schema.hierarchy(log, layout, https)
     universe    <- hierarchy.universe
-    policy      <- Policy.read(log, installation)
+    policy      <- Policy.read(log)
     compilation <- fromUniverse(log, universe, ref, policy, layout)
     _           <- compilation.generateFiles(log, layout)
   } yield compilation
@@ -295,11 +294,10 @@ object Compilation {
                        schema: Schema,
                        ref: ModuleRef,
                        layout: Layout,
-                       installation: Installation,
                        https: Boolean)
   : Future[Try[Compilation]] = {
 
-    def fn: Future[Try[Compilation]] = Future(mkCompilation(log, schema, ref, layout, installation, https))
+    def fn: Future[Try[Compilation]] = Future(mkCompilation(log, schema, ref, layout, https))
 
     compilationCache(layout.furyDir) = compilationCache.get(layout.furyDir) match {
       case Some(future) => future.transformWith(fn.waive)
@@ -313,9 +311,8 @@ object Compilation {
                       schema: Schema,
                       ref: ModuleRef,
                       layout: Layout,
-                      installation: Installation,
                       https: Boolean): Try[Compilation] = {
-    val compilation = mkCompilation(log, schema, ref, layout, installation, https)
+    val compilation = mkCompilation(log, schema, ref, layout, https)
     compilationCache(layout.furyDir) = Future.successful(compilation)
     compilation
   }
@@ -345,7 +342,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
   override def onBuildPublishDiagnostics(params: PublishDiagnosticsParams): Unit = {
     val targetId: TargetId = getTargetId(params.getBuildTarget.getUri)
     val fileName = new java.net.URI(params.getTextDocument.getUri).getRawPath
-    val repos = compilation.checkouts.map { checkout => (checkout.path(layout).value, checkout.repoId)}.toMap
+    val repos = compilation.checkouts.map { checkout => (checkout.path.value, checkout.repoId)}.toMap
 
     params.getDiagnostics.asScala.foreach { diag =>
       val lineNo  = LineNo(diag.getRange.getStart.getLine + 1)
