@@ -77,31 +77,28 @@ object Installation {
   val logsDir: Path = Xdg.cache(Path("fury/logs"))
 }
 
-case class Layout(home: Path, pwd: Path, env: Environment, base: Path) {
+case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {
   private[this] val nowString: String = Layout.dateFormat.format(new Date())
   private[this] val uniqueId: String = java.util.UUID.randomUUID().toString
   
-  private[this] val cacheDir =
-    env.variables.get("XDG_CACHE_HOME").map(Path(_)).getOrElse(home / ".cache") / "fury"
-  
-  lazy val furyDir: Path = (base / ".fury").extant()
-  lazy val bspDir: Path = (base / ".bsp").extant()
-  lazy val historyDir: Path = (furyDir / "history").extant()
-  lazy val bloopDir: Path = (base / ".bloop").extant()
+  lazy val furyDir: Path = (baseDir / ".fury").extant()
+  lazy val bspDir: Path = (baseDir / ".bsp").extant()
+  lazy val bloopDir: Path = (baseDir / ".bloop").extant()
+  lazy val focusFile: Path = baseDir / ".focus.fury"
+  lazy val furyConfig: Path = baseDir / "layer.fury"
+
   lazy val classesDir: Path = (furyDir / "classes").extant()
   lazy val benchmarksDir: Path = (furyDir / "benchmarks").extant()
   lazy val analysisDir: Path = (furyDir / "analysis").extant()
   lazy val resourcesDir: Path = (furyDir / "resources").extant()
   lazy val basesDir: Path = (furyDir / "bases").extant()
   lazy val workDir: Path = (furyDir / "work").extant()
-  lazy val policyDir: Path = (furyDir / "policy").extant()
   lazy val sharedDir: Path = (furyDir / "build" / uniqueId).extant()
   lazy val logsDir: Path = (furyDir / "logs").extant()
+  
   lazy val errorLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.log"
   lazy val messagesLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-messages.log"
   lazy val traceLogfile: Path = logsDir.extant() / s"$nowString-$uniqueId.bsp-trace.log"
-  lazy val focusFile: Path = base / ".focus.fury"
-  lazy val furyConfig: Path = base / "layer.fury"
   
   def bloopConfig(targetId: TargetId): Path = bloopDir.extant() / str"${targetId.key}.json"
   def outputDir(targetId: TargetId): Path = (analysisDir / targetId.key).extant()
