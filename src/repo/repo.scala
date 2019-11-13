@@ -49,7 +49,7 @@ object RepoCli {
       rows      <- ~schema.repos.to[List].sortBy(_.id)
       log       <- invoc.logger()
       table     <- ~Tables(config).show(Tables(config).repositories(layout), cli.cols, rows, raw)(_.id)
-      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.base, layer.showSchema, schema)))
+      _         <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema)))
       _         <- ~log.println(UserMsg { theme => table.mkString("\n") })
     } yield log.await()
   }

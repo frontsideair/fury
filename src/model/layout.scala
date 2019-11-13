@@ -76,6 +76,7 @@ object Installation {
   val binsDir: Path = Xdg.cache(Path("fury/bins"))
   val logsDir: Path = Xdg.cache(Path("fury/logs"))
   val upgradeDir: Path = Xdg.cache(Path("fury/upgrade"))
+  val policyDir: Path = Xdg.cache(Path("fury/policies"))
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {

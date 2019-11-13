@@ -93,7 +93,7 @@ object Policy {
 case class Policy(policy: SortedSet[Grant] = TreeSet()) {
   def forContext(layout: Layout, projectId: ProjectId/*, layer: Layer*/): Policy =
     Policy(policy.filter {
-      case Grant(DirectoryScope(dir), _) => dir == layout.base.value
+      case Grant(DirectoryScope(dir), _) => dir == layout.baseDir.value
       case Grant(ProjectScope(id), _)    => projectId == id
       //case Grant(LayerScope(hash), _)    => hash == layer.hash
     })
@@ -199,7 +199,7 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     } yield {
       // FIXME: This assumes published layers will not have local sources
       // Previously this was (_ in resolvedProject.path)
-      val sourcePaths = module.localSources.map(_ in layout.base).to[List] ++
+      val sourcePaths = module.localSources.map(_ in layout.baseDir).to[List] ++
         module.sharedSources.map(_.path in layout.sharedDir).to[List] ++
         checkouts.flatMap { c =>
           c.local match {
@@ -399,7 +399,7 @@ object Layer {
 
   def loadFile(log: Log, file: Path, layout: Layout, env: Environment): Try[LayerRef] = for {
     tmpDir <- Path.mkTempDir()
-    _      <- TarGz.extract(file, tmpDir)
+    _      <- TarGz.extract(log, file, tmpDir)
     _      <- (tmpDir / "layers").childPaths.map { f => f.moveTo(Installation.layersPath / f.name) }.sequence
     bases  <- ~(tmpDir / "bases").childPaths
     _      <- bases.map { b => b.moveTo(layout.basesDir / b.name)}.sequence

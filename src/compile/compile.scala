@@ -366,7 +366,7 @@ class DisplayingClient(messageSink: PrintWriter) extends FuryBuildClient {
 
       val (repo, filePath) = repos.find { case (k, v) => fileName.startsWith(k) }.map {
         case (k, v) => (v, Path(fileName.drop(k.length + 1)))
-      }.getOrElse((RepoId("local"), Path(fileName.drop(layout.base.value.length + 1))))
+      }.getOrElse((RepoId("local"), Path(fileName.drop(layout.baseDir.value.length + 1))))
 
       import escritoire.Ansi
 
@@ -501,7 +501,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
   lazy val allDependencies: Set[Target] = targets.values.to[Set]
 
   def bspUpdate(log: Log, targetId: TargetId, layout: Layout): Try[Unit] =
-    Await.result(Compilation.bspPool.borrow(layout.base) { conn =>
+    Await.result(Compilation.bspPool.borrow(layout.baseDir) { conn =>
       conn.provision(this, targetId, layout, None) { server =>
         Try(server.workspaceBuildTargets.get)
       }
@@ -569,7 +569,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
       manifest          = Manifest(bins.map(_.name), module.main)
       dest             <- destination.directory
       path              = (dest / str"${ref.projectId.key}-${ref.moduleId.key}.jar")
-      _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.base)}")
+      _                 = log.info(msg"Saving JAR file ${path.relativizeTo(layout.baseDir)}")
       stagingDirectory <- aggregateCompileResults(ref, srcs, layout)
       _                <- if(fatJar) bins.traverse { bin => Zipper.unpack(bin, stagingDirectory) }
       else Success(())
@@ -626,7 +626,7 @@ case class Compilation(graph: Map[TargetId, List[TargetId]],
     }
     val bspToFury = (bspTargetIds zip furyTargetIds).toMap
     val scalacOptionsParams = new ScalacOptionsParams(bspTargetIds.asJava)
-    Compilation.bspPool.borrow(layout.base) { conn =>
+    Compilation.bspPool.borrow(layout.baseDir) { conn =>
       val bspCompileResult: Try[BspCompileResult] = conn.provision(this, target.id, layout, Some(multiplexer)) { server =>
         wrapServerErrors(server.buildTargetCompile(params))
       }
