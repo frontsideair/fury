@@ -112,8 +112,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
   
   private[this] var client: BuildClient = _
 
-  private val config = Config()
-  private val log    = new Log(System.err, config)
+  private val log    = new Log(System.err)
 
   private def structure: Try[Structure] =
     for {
@@ -290,7 +289,7 @@ class FuryBuildServer(layout: Layout, cancel: Cancelator, https: Boolean) extend
         val compilationTasks = compilation.compile(log, moduleRef, multiplexer, Map.empty, layout, globalPolicy, List.empty, pipelining = false)
         val aggregatedTask = Future.sequence(compilationTasks.values.toList).map(CompileResult.merge(_))
         aggregatedTask.andThen{case _ => multiplexer.closeAll()}
-        reporter.report(log, compilation.graph, config.theme, multiplexer)
+        reporter.report(log, compilation.graph, Installation.config().theme, multiplexer)
         val synchronousResult = Await.result(aggregatedTask, Duration.Inf)
         synchronousResult
       }

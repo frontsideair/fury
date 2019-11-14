@@ -30,12 +30,11 @@ object DependencyCli {
   case class Context(
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
-      override val config: Config,
       override val layer: Layer,
       optSchema: Option[Schema],
       optProject: Option[Project],
       optModule: Option[Module])
-      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+      extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -44,8 +43,7 @@ object DependencyCli {
   def context(cli: Cli[CliParam[_]]) =
     for {
       layout       <- cli.layout
-      config       <- ~cli.config
-      layer        <- Layer.read(Log.silent(config), layout)
+      layer        <- Layer.read(Log.silent, layout)
       cli          <- cli.hint(SchemaArg, layer.schemas)
       schemaArg    <- ~cli.peek(SchemaArg)
       schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -61,7 +59,7 @@ object DependencyCli {
                         module   <- project.modules.findBy(moduleId).toOption
                       } yield module }
 
-    } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+    } yield new Context(cli, layout, layer, schema, optProject, optModule)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -73,10 +71,10 @@ object DependencyCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.after.to[List].sorted
-      table   <- ~Tables(config).show(Tables(config).dependencies, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().dependencies, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -115,7 +113,7 @@ object DependencyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli              <- cli.hint(LinkArg, allModules.filter(!_.hidden))
@@ -144,12 +142,11 @@ object EnvCli {
 
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
-                     override val config: Config,
                      override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -157,8 +154,7 @@ object EnvCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -172,7 +168,7 @@ object EnvCli {
                       moduleId <- optModuleId
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
-  } yield new Context(cli, layout, config, layer, schema, optProject, optModule)
+  } yield new Context(cli, layout, layer, schema, optProject, optModule)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -184,10 +180,10 @@ object EnvCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.environment.to[List].sorted
-      table   <- ~Tables(config).show(Tables(config).envs, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().envs, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -219,7 +215,7 @@ object EnvCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       allModules       = allSchemas.map(_.moduleRefs).flatten
       cli             <- cli.hint(EnvArg)
@@ -241,12 +237,11 @@ object PermissionCli {
   
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
-                     override val config: Config,
                      override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project],
                      optModule: Option[Module])
-             extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -254,8 +249,7 @@ object PermissionCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -271,7 +265,7 @@ object PermissionCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield Context(cli, layout, config, layer, schema, optProject, optModule)
+  } yield Context(cli, layout, layer, schema, optProject, optModule)
 
   def require(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -332,10 +326,10 @@ object PermissionCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.policyEntries.to[List].sortBy(_.hash.key)
-      table   <- ~Tables(config).show(Tables(config).permissions, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().permissions, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -369,12 +363,11 @@ object PropertyCli {
   case class Context(
       override val cli: Cli[CliParam[_]],
       override val layout: Layout,
-      override val config: Config,
       override val layer: Layer,
       optSchema: Option[Schema],
       optProject: Option[Project],
       optModule: Option[Module])
-      extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+      extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -382,8 +375,7 @@ object PropertyCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
@@ -399,7 +391,7 @@ object PropertyCli {
                       module   <- project.modules.findBy(moduleId).toOption
                     } yield module }
 
-  } yield Context(cli, layout, config, layer, schema, optProject, optModule)
+  } yield Context(cli, layout, layer, schema, optProject, optModule)
 
   def list(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -411,10 +403,10 @@ object PropertyCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.properties.to[List].sorted
-      table   <- ~Tables(config).show(Tables(config).props, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().props, cli.cols, rows, raw)(identity)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -445,7 +437,7 @@ object PropertyCli {
     import ctx._
     for {
       optSchema       <- ~layer.mainSchema.toOption
-      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent(ctx.config), ctx.layout, false).toOption)
+      importedSchemas  = optSchema.flatMap(_.importedSchemas(Log.silent, ctx.layout, false).toOption)
       allSchemas       = optSchema.toList ::: importedSchemas.toList.flatten
       cli             <- cli.hint(PropArg)
       invoc           <- cli.read()

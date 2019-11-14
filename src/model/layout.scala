@@ -16,7 +16,7 @@
 */
 package fury.model
 
-import fury._, io._, strings._
+import fury._, io._, strings._, ogdl._
 
 import gastronomy._
 import guillotine._
@@ -24,6 +24,8 @@ import java.util.{List => _, _}
 import java.text._
 
 import scala.util.Try
+
+import language.higherKinds
 
 object Layout {
   final val dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss.SSS")
@@ -90,6 +92,8 @@ object Installation {
     file.delete()
     result
   }
+
+  def config(): Config = Ogdl.read[Config](userConfig, identity(_)).toOption.getOrElse(Config())
 }
 
 case class Layout(home: Path, pwd: Path, env: Environment, baseDir: Path) {

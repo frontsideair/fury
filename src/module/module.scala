@@ -31,11 +31,10 @@ object ModuleCli {
 
   case class Context(override val cli: Cli[CliParam[_]],
                      override val layout: Layout,
-                     override val config: Config,
                      override val layer: Layer,
                      optSchema: Option[Schema],
                      optProject: Option[Project])
-             extends MenuContext(cli, layout, config, layer, optSchema.map(_.id)) {
+             extends MenuContext(cli, layout, layer, optSchema.map(_.id)) {
 
     def defaultSchemaId: SchemaId  = optSchemaId.getOrElse(layer.main)
     def defaultSchema: Try[Schema] = layer.schemas.findBy(defaultSchemaId)
@@ -43,15 +42,14 @@ object ModuleCli {
 
   def context(cli: Cli[CliParam[_]]) = for {
     layout       <- cli.layout
-    config       <- ~cli.config
-    layer        <- Layer.read(Log.silent(config), layout)
+    layer        <- Layer.read(Log.silent, layout)
     cli          <- cli.hint(SchemaArg, layer.schemas)
     schemaArg    <- ~cli.peek(SchemaArg)
     schema       <- ~layer.schemas.findBy(schemaArg.getOrElse(layer.main)).toOption
     cli          <- cli.hint(ProjectArg, schema.map(_.projects).getOrElse(Nil))
     optProjectId <- ~schema.flatMap { s => cli.peek(ProjectArg).orElse(s.main) }
     optProject   <- ~schema.flatMap { s => optProjectId.flatMap(s.projects.findBy(_).toOption) }
-  } yield Context(cli, layout, config, layer, schema, optProject)
+  } yield Context(cli, layout, layer, schema, optProject)
 
   def select(ctx: Context): Try[ExitStatus] = {
     import ctx._
@@ -81,12 +79,12 @@ object ModuleCli {
       raw     <- ~invoc(RawArg).isSuccess
       rows    <- ~project.modules.to[List]
 
-      table   <- ~Tables(config).show(Tables(config).modules(project.id, project.main), cli.cols, rows,
+      table   <- ~Tables().show(Tables().modules(project.id, project.main), cli.cols, rows,
                      raw)(_.id)
 
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -101,7 +99,7 @@ object ModuleCli {
       cli            <- cli.hint(HiddenArg, List("on", "off"))
 
       cli            <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                            _.compilerRefs(Log.silent(config), layout, true)))
+                            _.compilerRefs(Log.silent, layout, true)))
 
       cli            <- cli.hint(KindArg, Kind.all)
       optKind        <- ~cli.peek(KindArg)
@@ -169,7 +167,7 @@ object ModuleCli {
       cli      <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
 
       cli      <- cli.hint(CompilerArg, defaultSchema.toOption.to[List].flatMap(_.compilerRefs(
-                      Log.silent(config), layout, true)))
+                      Log.silent, layout, true)))
 
       cli      <- cli.hint(ForceArg)
       invoc    <- cli.read()
@@ -201,7 +199,7 @@ object ModuleCli {
       cli         <- cli.hint(HiddenArg, List("on", "off"))
       
       cli         <- cli.hint(CompilerArg, ModuleRef.JavaRef :: defaultSchema.toOption.to[List].flatMap(
-                         _.compilerRefs(Log.silent(config), layout, true)))
+                         _.compilerRefs(Log.silent, layout, true)))
       
       cli         <- cli.hint(KindArg, Kind.all)
       optModuleId <- ~cli.peek(ModuleArg).orElse(optProject.flatMap(_.main))
@@ -297,9 +295,9 @@ object BinaryCli {
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.allBinaries.to[List]
       schema  <- defaultSchema
-      table   <- ~Tables(config).show(Tables(config).binaries, cli.cols, rows, raw)(identity)
+      table   <- ~Tables().show(Tables().binaries, cli.cols, rows, raw)(identity)
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
@@ -389,10 +387,10 @@ object ParamCli {
       project <- optProject.ascribe(UnspecifiedProject())
       module  <- optModule.ascribe(UnspecifiedModule())
       rows    <- ~module.params.to[List]
-      table   <- ~Tables(config).show(Tables(config).params, cli.cols, rows, raw)(_.name)
+      table   <- ~Tables().show(Tables().params, cli.cols, rows, raw)(_.name)
       schema  <- defaultSchema
 
-      _       <- ~(if(!raw) log.println(Tables(config).contextString(layout.baseDir, layer.showSchema, schema,
+      _       <- ~(if(!raw) log.println(Tables().contextString(layout.baseDir, layer.showSchema, schema,
                      project, module)))
 
       _       <- ~log.println(table.mkString("\n"))
