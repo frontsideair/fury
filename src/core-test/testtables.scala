@@ -26,7 +26,7 @@ import probably._
 object TablesTest extends TestApp {
   override def tests(): Unit = {
     test("contextString with showSchema=true") {
-      val tables = Tables(Config())
+      val tables = Tables()
 
       tables.contextString(msg"foo", true, msg"bar", msg"baz").string(Theme.NoColor)
     }.assert {
@@ -34,7 +34,7 @@ object TablesTest extends TestApp {
     }
 
     test("contextString with showSchema=false") {
-      val tables = Tables(Config())
+      val tables = Tables()
 
       tables.contextString(msg"foo", false, msg"bar", msg"baz").string(Theme.NoColor)
     }.assert {
