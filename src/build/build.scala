@@ -250,18 +250,16 @@ object BuildCli {
     optModule    <- ~optModuleId.flatMap { mId => optProject.flatMap(_.modules.findBy(mId).toOption) }
   } yield Prompt.zsh(layer, schema, optProject, optModule)(theme)
 
-  def upgrade(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
+  def upgrade(cli: Cli[CliParam[_]]): Try[ExitStatus] = Installation.tmpFile { tmpFile => for {
     layout        <- cli.layout
     config        <- ~cli.config
     invoc         <- cli.read()
     log           <- invoc.logger()
     records       <- Dns.lookup(Log.silent(config), config.service)
     latestRef     <- records.filter(_.startsWith("fury.latest:")).headOption.map(_.drop(12)).map(IpfsRef(_)).ascribe(NoLatestVersion())
-    tmpFile       <- Installation.layersPath.mkTempFile()
     file          <- Shell(cli.env).ipfs.get(latestRef, tmpFile)
-    _             <- tmpFile.delete()
     _             <- TarGz.extract(log, file, Installation.upgradeDir)
-  } yield log.await()
+  } yield log.await() }
 
   def prompt(cli: Cli[CliParam[_]]): Try[ExitStatus] = for {
     layout <- cli.layout
