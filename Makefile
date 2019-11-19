@@ -7,6 +7,13 @@ NAILGUNJAR=nailgun-server-1.0.0.jar
 NAILGUNJARPATH=dist/bundle/lib/$(NAILGUNJAR)
 NATIVEJARS=dist/bundle/lib/fury-frontend.jar $(NAILGUNJARPATH) bootstrap/scala/lib/scala-library.jar bootstrap/scala/lib/scala-reflect.jar
 DOCKER_TAG=fury-ci
+INIT_CGROUP=$(shell cat /proc/1/cgroup | tail -n1 | cut -d: -f3)
+ifeq ($(INIT_CGROUP),"/")
+	FURY_OUTPUT=graph
+else
+	FURY_OUTPUT=linear
+endif
+
 export PATH := $(PWD)/bootstrap/scala/bin:$(PATH)
 
 all: dist/bundle/lib/fury-frontend.jar
@@ -57,6 +64,9 @@ bootstrap/scala:
 bootstrap/bin:
 	mkdir -p $@
 
+bootstrap/build.fury: bootstrap/bin
+	tar -cvzf $@ .focus.fury layers/*
+
 pre-compile: bootstrap/bin bootstrap/scala $(NAILGUNJARPATH)
 
 # Libraries
@@ -67,10 +77,10 @@ dist/bundle/lib:
 dist/bundle/lib/$(NAILGUNJAR): dist/bundle/lib
 	curl -s -o $@ http://central.maven.org/maven2/com/facebook/nailgun-server/1.0.0/nailgun-server-1.0.0.jar
 
-dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/bin .version src/**/*.scala
-	$(FURYLOCAL) layer extract -f build.fury
+dist/bundle/lib/fury-frontend.jar: dist/bundle/lib $(FURYLOCAL) bootstrap/build.fury bootstrap/bin .version src/**/*.scala
+	$(FURYLOCAL) layer extract -f bootstrap/build.fury
 	$(FURYLOCAL) permission grant --module frontend --project fury -P 729
-	$(FURYLOCAL) build save --https --output linear --project fury --module frontend --dir $<
+	$(FURYLOCAL) build save --https --output $(FURY_OUTPUT) --project fury --module frontend --dir $<
 	jar -uf $@ .version
 
 dist/bundle/lib/%.jar: bootstrap/bin .version dist/bundle/lib bootstrap/git/% compile
@@ -106,9 +116,9 @@ fury-native: dist/bundle/lib/fury-frontend.jar
 	native-image -cp $(shell bash -c "ls $(NATIVEJARS) | paste -s -d: -") fury.Main
 
 test:
-	fury build run --https --output linear --project fury --module test-strings
-	fury build run --https --output linear --project fury --module test-ogdl
-	fury build run --https --output linear --project fury --module test-core
+	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-strings
+	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-ogdl
+	fury build run --https --output $(FURY_OUTPUT) --project fury --module test-core
 
 integration:
 	etc/integration
