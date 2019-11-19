@@ -14,58 +14,71 @@
    ║ See the License for the specific language governing permissions and limitations under the License.        ║
    ╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 */
-package fury.utils
+package fury.core
 
-import java.io.{BufferedReader, IOException, PrintWriter}
-import java.nio.CharBuffer
-import org.eclipse.lsp4j.jsonrpc.JsonRpcException
+import scala.collection.mutable.Map
+import scala.collection.Set
+import scala.concurrent._
+import scala.util._
 
-import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.blocking
+abstract class Pool[K, T <: AnyRef](private implicit val ec: ExecutionContext) {
 
-class Drain(private val ec: ExecutionContext){
+  def create(key: K)(implicit log: Log): T
+  def destroy(value: T)(implicit log: Log): Unit
+  def isBad(value: T): Boolean
 
-  private val handles: mutable.Set[Drainable] = mutable.HashSet()
+  private[this] val pool: Map[K, Future[T]] = scala.collection.concurrent.TrieMap()
+  
+  def keySet: Set[K] = pool.keySet
 
-  def register(drainable: Drainable)(implicit ec: ExecutionContext): Unit = {
-    handles.synchronized {
-      handles += drainable
-    }
+  protected def get(key: K): Future[T] = pool(key)
+
+  protected def remove(key: K): Unit = {
+    pool -= key
   }
 
-  private val buffer = CharBuffer.allocate(1024)
+  protected def add(key: K, value: Future[T]): Unit = {
+    pool(key) = value
+  }
 
-  Future(blocking {
-    while(true) {
-      handles.foreach { handle =>
-        try {
-          val bytesRead = handle.source.read(buffer)
-          if (bytesRead == -1){
-            handle.onStop()
-          } else if (bytesRead > 0){
-            buffer.flip()
-            handle.sink.write(buffer.toString)
-          }
-        } catch {
-          case e @ (_ : JsonRpcException | _: IOException) =>
-            handle.sink.println("Broken handle!")
-            handles.synchronized { handles -= handle }
-            e.printStackTrace(handle.sink)
-            handle.onError(e)
-        } finally {
-          buffer.clear()
+  private[this] final def createOrRecycle(key: K)(implicit log: Log): Future[T] = {
+    val result = pool.get(key) match {
+      case None =>
+        val res = Future(blocking(create(key)))
+        pool(key) = res
+        res
+      case Some(value) =>
+        value.filter{v =>
+          val bad = isBad(v)
+          if(bad) { destroy(v) }
+          !bad
+        }.andThen{
+          case Failure(e) => pool -= key
         }
-      }
-      Thread.sleep(100)
     }
-  })(ec)
+    result.recoverWith{ case _ => createOrRecycle(key) }
+  }
 
-}
+  def borrow[S](key: K)(action: T => S)(implicit log: Log): Future[S] = {
+    val released = Promise[T]
+    val lock: AnyRef = pool.get(key).getOrElse(pool)
+    
+    val claimed: Future[T] = lock.synchronized {
+      createOrRecycle(key).map { v =>
+        pool(key) = released.future
+        v
+      }
+    }
 
-trait Drainable {
-  val source: BufferedReader
-  val sink: PrintWriter
-  def onError(e: Throwable): Unit
-  def onStop(): Unit
+    claimed.map { v =>
+      try action(v)
+      finally {
+        if(isBad(v)) {
+          destroy(v)
+          released.failure(new Exception("Resource got stale"))
+        }
+        else released.success(v)
+      }
+    }
+  }
 }

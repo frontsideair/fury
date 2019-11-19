@@ -112,44 +112,13 @@ class BspConnection(val future: java.util.concurrent.Future[Void],
 object BspConnectionManager {
   case class Handle(in: OutputStream,
                     out: InputStream,
-                    err: InputStream,
-                    sink: PrintWriter,
+                    log: PrintStream,
                     broken: Promise[Unit],
                     launcher: Future[LauncherStatus])
-    extends AutoCloseable with Drainable {
-
-    override def close(): Unit = {
-      sink.println(s"Closing handle... Launcher status = ${launcher.value}")
-      in.close()
-      out.close()
-      err.close()
-    }
-
-    override val source: BufferedReader = new BufferedReader(new InputStreamReader(err))
-
-    override def onStop(): Unit = {
-      broken.success(())
-    }
-
-    override def onError(e: Throwable): Unit = {
-      broken.failure(e)
-      close()
-    }
-  }
-
-  object HandleHandler {
-    private val ec: ExecutionContext = Threads.singleThread("handle-handler", daemon = true)
-
-    private val drain = new Drain(ec)
-
-    def handle(handle: Handle): Unit = {
-      drain.register(handle)
-    }
-  }
 
   private val bloopVersion = "1.3.5"
 
-  def bloopLauncher(sink: PrintWriter): Handle = {
+  def bloopLauncher()(implicit log: Log): Handle = {
 
     val bloopIn = new PipedInputStream
     val in = new PipedOutputStream
@@ -159,14 +128,12 @@ object BspConnectionManager {
     val out = new PipedInputStream
     out.connect(bloopOut)
 
-    val bloopErr = new PipedOutputStream
-    val err = new PipedInputStream
-    err.connect(bloopErr)
+    val printWriter = log.noteStream()
 
     val launcher = new LauncherMain(
       clientIn = bloopIn,
       clientOut = bloopOut,
-      out = new PrintStream(bloopErr),
+      out = printWriter,
       charset = StandardCharsets.UTF_8,
       shell = bloop.bloopgun.core.Shell.default,
       userNailgunHost = None,
@@ -182,7 +149,7 @@ object BspConnectionManager {
       )
     })
 
-    Handle(in, out, err, sink, Promise[Unit], future)
+    Handle(in, out, printWriter, Promise[Unit], future)
   }
 }
 
@@ -192,30 +159,22 @@ object Compilation {
   //FIXME
   var receiverClient: Option[BuildClient] = None
 
-  val bspPool: Pool[Path, BspConnection] = new SelfCleaningPool[Path, BspConnection](10000L) {
+  val bspPool: Pool[Path, BspConnection] = new Pool[Path, BspConnection]() {
 
-    def destroy(value: BspConnection): Unit = value.shutdown()
+    def destroy(value: BspConnection)(implicit log: Log): Unit = value.shutdown()
     def isBad(value: BspConnection): Boolean = value.future.isDone
-    def isIdle(value: BspConnection): Boolean = {
-      (System.currentTimeMillis - value.createdAt > cleaningInterval) && (value.client match {
-        case dc: DisplayingClient => dc.multiplexer.forall(_.finished)
-        case c => false
-      })
-    }
 
-    def create(dir: Path): BspConnection = {
+    def create(dir: Path)(implicit log: Log): BspConnection = {
       val bspMessageBuffer = new CharArrayWriter()
       val bspTraceBuffer = new CharArrayWriter()
-      val log = new java.io.PrintWriter(bspTraceBuffer, true)
-      val handle = BspConnectionManager.bloopLauncher(log)
-      BspConnectionManager.HandleHandler.handle(handle)
+      val handle = BspConnectionManager.bloopLauncher()(log)
       val client = receiverClient.fold[FuryBuildClient](
         new DisplayingClient(messageSink = new PrintWriter(bspMessageBuffer))
       ){
         rec => new ForwardingClient(rec)
       }
       val launcher = new Launcher.Builder[FuryBspServer]()
-        .traceMessages(log)
+        //.traceMessages(new PrintWriter(handle.log))
         .setRemoteInterface(classOf[FuryBspServer])
         .setExecutorService(compilationThreadPool)
         .setInput(handle.out)
@@ -236,13 +195,13 @@ object Compilation {
 
       handle.broken.future.andThen {
         case Success(_) =>
-          log.println(msg"Connection for $dir has been closed")
-          log.flush()
+          log.note(msg"Connection for $dir has been closed")
+          //log.flush()
           bspConn.future.cancel(false)
         case Failure(e) =>
-          log.println(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
-          e.printStackTrace(log)
-          log.flush()
+          log.note(msg"Connection for $dir is broken. Cause: ${e.getMessage}")
+          //e.printStackTrace(log)
+          //log.flush()
           bspConn.future.cancel(false)
       }
       bspConn
